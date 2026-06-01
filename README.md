@@ -1,105 +1,100 @@
 # Car Buying Helper
 
-Helps a confused car buyer go from *"I don't know what to buy"* to a confident
-shortlist of **four cars**, each with a clear reason it fits them. Answer six
-short questions, get ranked, reasoned recommendations.
+A guided web app that takes a confused car buyer from _"I don't know what to buy"_ to a confident shortlist of four cars — each with a plain-language reason it fits them.
 
-Built to [SPEC.md](SPEC.md).
+**Live URL:** https://cardheko-assignment.vercel.app/
+**Screen recording:** https://drive.google.com/file/d/1WrY8gEUT7nDfsB608Fj_zR3L8qxojdSr/view?usp=sharing
 
-## Stack
+---
 
-- **Next.js (App Router) + TypeScript**
-- **Tailwind CSS** for styling
-- **API Route** (`POST /api/recommend`) for the scoring backend
-- Seeded **`data/cars.json`** (40 cars) as the only data source — no database
-- Deploy target: **Vercel**
+## What I built and why
 
-## Run locally
+The brief was deliberately vague, so the first decision was _what not to build_. A confused buyer isn't helped by yet another catalog with filters — that assumes they already know what they want. The highest-value thing is a short guided flow that asks what they care about and does the thinking for them.
 
-```bash
-npm install
-npm run dev          # http://localhost:3000
-```
+So I built:
 
-> If `npm install` fails with an `EACCES` cache error, your global npm cache has
-> root-owned files. Either fix it once with `sudo chown -R $(id -u):$(id -g) ~/.npm`,
-> or install with a local cache: `npm install --cache /tmp/npm-cache`.
+1. A **6-step questionnaire** — budget, body type, driving (city/highway/mixed), fuel, seats, and top priority (safety / mileage / features / resale).
+2. A **scoring engine** that hard-filters cars by the buyer's constraints, then scores the survivors on a 0–100 scale weighted heavily toward their stated priority.
+3. A **results page** showing the top 4 cars, each with a one-line _"why this fits you"_ reason tied to that priority.
 
-Other scripts:
+The result is a buyer answering six quick questions and getting a reasoned shortlist — which is the entire brief.
 
-```bash
-npm run build        # production build
-npm test             # unit tests (scoring + validation)
-```
+## What I deliberately cut
 
-## How it works
+- **No authentication / accounts** — irrelevant to the core job.
+- **No database** — 40 curated cars live in a seeded JSON file; a DB would be setup overhead with zero added value at this scale.
+- **No real-time pricing** — dataset prices are illustrative. Live pricing is an integration problem, not a product-thesis problem.
+- **No reviews, comparison tables, or pixel-perfect design** — all candidates for "later," none essential to proving the idea works.
 
-1. **Questionnaire** (`/`) — a six-step stepper: budget (slider), body type,
-   driving, fuel, seats, priority. Option values are generated from the API
-   validator's exported allowed-value lists, so the UI can't drift from what the
-   backend accepts.
-2. **API** (`POST /api/recommend`) — validates the answers against the allowed
-   values (returns `400` with per-field errors on bad/missing input) and
-   delegates ranking. Returns `200 { recommendations: [...] }`, or an empty array
-   when nothing passes the filters.
-3. **Scoring** (`src/lib/scoring.ts`) — a pure, testable module:
-   - **Hard filters:** price ≤ budget, body match, fuel match, `seats ≥ 7` when "7+".
-   - **0–100 weighted score:** the buyer's chosen **priority is the largest factor**
-     (60), plus **driving fit** (25) and a **budget-fit bonus** (15) that peaks at
-     ~80% of budget.
-   - Sort descending, take the **top 4**, and build a one-line *"why this fits you"*
-     reason from the priority and the best-matching highlight.
-4. **Results** (`/results`) — top-4 cards with make + model + variant, price, a key
-   spec, and the reason. Friendly empty-state when nothing matches.
+I'd rather ship a tight, opinionated MVP that does one thing well than a half-finished kitchen sink.
 
-## Project structure
+## Tech stack and why
+
+- **Next.js (App Router) + TypeScript** — frontend and backend in one repo, so "full-stack" is satisfied without running two servers. Types caught mistakes early.
+- **API route (`/api/recommend`)** — the non-trivial backend: it validates input and computes a ranked, reasoned result. Real computation, not a static page.
+- **Pure scoring module (`lib/`)** — the scoring logic is a side-effect-free function, kept out of the route so it's unit-testable in isolation.
+- **Tailwind CSS** — fast, clean styling without hand-writing CSS.
+- **Vitest** — quick unit tests for the scoring and validation logic.
+- **Vercel** — one-click deploy from GitHub for a live URL.
+
+## Architecture at a glance
 
 ```
 app/
-  page.tsx                 # questionnaire (6-step stepper)
-  results/page.tsx         # top-4 result cards
-  api/recommend/route.ts   # POST /api/recommend — validates + delegates
-src/
-  lib/
-    types.ts               # Car + questionnaire/answer types
-    cars.ts                # loads & types data/cars.json
-    scoring.ts             # pure scoring logic (+ scoring.test.ts)
-    validate.ts            # pure input validation (+ validate.test.ts)
-    session.ts             # sessionStorage keys shared by the two pages
-  components/
-    ProgressStepper.tsx    # step progress indicator
-    OptionGroup.tsx        # single-select option buttons
-data/cars.json             # seeded dataset (40 cars)
+  page.tsx               # questionnaire (6 steps)
+  results/page.tsx       # top-4 results
+  api/recommend/route.ts # validates input, calls recommend(), returns ranked cars
+lib/
+  scoring.ts             # pure scoring engine (filter -> score -> top 4 + reason)
+  validateAnswers.ts     # input validation + shared allowed-value lists
+data/
+  cars.json              # 40 seeded cars
 ```
 
-## Deliberate cuts
+The scoring flow: **hard filters** (price, body, fuel, seats) eliminate non-matches → survivors are **scored 0–100** (priority weighted highest, then driving fit, then budget fit) → **sorted, top 4** → a **reason string** is built from the best priority-matching highlight.
 
-Following the spec's non-goals, and to keep the build focused:
+## What I delegated to AI vs did manually
 
-- No authentication / accounts and no database — the seeded JSON is the source of truth.
-- Prices are **illustrative**, not live or accurate.
-- No reviews, image-heavy UI, or pixel-perfect design.
-- No comparison / spec-sheet deep dives.
-- State is passed between pages via `sessionStorage` rather than a global store —
-  simplest thing that works for a two-page flow.
+I used Claude Code in a **spec-driven, phased** workflow: I wrote the spec first, then had it build in four reviewable phases — data, scoring, API, UI — pausing after each so I could check the output before continuing.
 
-## AI usage
+**The AI did:** nearly all the code-writing — scaffolding, the scoring implementation, the API route, the React UI, and the test suites.
 
-Built with **Claude Code** (Anthropic). The work was done in reviewable phases —
-scaffold, scoring module, API route, then UI — pausing for review between each.
-AI handled scaffolding, the scoring/validation logic and their unit tests, the
-API route, and the React/Tailwind UI. A couple of decisions worth noting that
-came out of that process: bumping Next.js off the originally pinned version after
-npm flagged a CVE, and fixing a redundant reason string (e.g. *"5-star safety and
-5-star safety rating"*) by skipping highlights that merely restate the priority.
-All scoring rules, filters, and allowed values follow [SPEC.md](SPEC.md); the
-dataset was used as-is.
+**I did:** the product and scoping decisions (guided flow over a filter catalog, what to cut), the spec, the phasing, and reviewing/correcting output at each checkpoint.
 
-## Next steps
+**Where the tools helped most:** raw speed on boilerplate and test scaffolding, and turning a clear spec into working code fast. Splitting the validator into its own module (so the UI could reuse the allowed-value lists) was a good suggestion I accepted.
 
-- Persist or share results via a URL (encode answers in the query string) instead
-  of `sessionStorage`, so a shortlist is linkable.
-- Add the comparison / spec-sheet view that was cut.
-- Real pricing and inventory from a live source.
-- Tune scoring weights against real buyer feedback; expose "why not" for filtered-out cars.
-- More dataset coverage (more makes, variants, and body types).
+**Where I had to steer / they got in the way:**
+
+- The first version generated a _misleading_ recommendation reason — pairing an unrelated highlight with the buyer's priority (e.g. "long range — matches your safety priority"). I caught it and changed it to neutral wording when nothing matches, because a misleading reason undercuts buyer trust, which is the whole point of the product.
+- A pinned Tailwind version broke the build; I had the tool bump it to a matched pair to fix it.
+- I had to be explicit about keeping scoring logic out of the API route so it stayed testable.
+- A few times the agent wanted to do more than the phase asked — I held it to one phase at a time.
+
+<!-- TODO: tweak the two paragraphs above to match your real experience and voice. Be honest — that's what's being evaluated. -->
+
+## Running locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:3000
+
+Run the tests:
+
+```bash
+npm test
+```
+
+## If I had another 4 hours
+
+- **Natural-language input** — let the buyer type "safe family SUV under 15 lakh, mostly city" and use an LLM call to parse it into the structured answers. This is the most on-brief AI-native addition.
+- **Side-by-side compare** for the shortlisted cars.
+- **Explain the score** — show _why_ each car ranked where it did, not just the headline reason.
+- **A real dataset** with live pricing and more cars.
+- **Save/share a shortlist** via a URL.
+
+---
+
+_Built as a take-home for the AI-Native Software Engineer role. Time-boxed to ~2.5 hours._
